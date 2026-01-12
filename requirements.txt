@@ -1,0 +1,15 @@
+# UTTT Research Harness Dependencies
+
+# Core
+numpy>=1.24.0
+
+# Neural Network (optional - only needed for NN agent)
+torch>=2.0.0
+
+# Visualization (optional - for notebooks)
+matplotlib>=3.7.0
+seaborn>=0.12.0
+pandas>=2.0.0
+
+# Development
+pytest>=7.0.0
