@@ -94,9 +94,9 @@ def run_mcts_skill_evaluations(
 
                 while not state.is_terminal():
                     legal_moves = rules.get_legal_moves(state)
-                    collector.record_turn(state, legal_moves)
-
                     move = agent.select_move(state, rules)
+                    value_estimate = agent.get_value_estimate(state) or 0.5
+                    collector.record_turn(state, legal_moves, value=value_estimate)
                     collector.record_move(move)
 
                     if game_logger:
