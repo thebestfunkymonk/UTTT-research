@@ -111,8 +111,6 @@ class MCTSAgent(Agent):
         """Reset agent for new game."""
         self._root = None
         self._last_value = None
-        if self._seed is not None:
-            self._rng = random.Random(self._seed)
     
     def select_move(
         self, 
