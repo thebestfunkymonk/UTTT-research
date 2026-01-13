@@ -73,6 +73,7 @@ class MCTSAgent(Agent):
         num_simulations: int = 1000,
         exploration: float = 1.414,
         max_rollout_depth: int = 200,
+        move_randomness: float = 0.0,
         seed: Optional[int] = None,
         name: Optional[str] = None,
         reuse_tree: bool = True,
@@ -84,6 +85,7 @@ class MCTSAgent(Agent):
             num_simulations: Number of simulations per move
             exploration: UCB1 exploration constant (sqrt(2) is theoretically optimal)
             max_rollout_depth: Maximum depth for random rollouts
+            move_randomness: Probability of selecting a random legal move
             seed: Random seed
             name: Custom name for the agent
             reuse_tree: Whether to reuse search tree across moves
@@ -92,6 +94,7 @@ class MCTSAgent(Agent):
         self.num_simulations = num_simulations
         self.exploration = exploration
         self.max_rollout_depth = max_rollout_depth
+        self.move_randomness = move_randomness
         self._rng = random.Random(seed)
         self._seed = seed
         self.reuse_tree = reuse_tree
@@ -132,7 +135,22 @@ class MCTSAgent(Agent):
             # Edge case: no simulations expanded children
             legal_moves = rules.get_legal_moves(state)
             return self._rng.choice(legal_moves) if legal_moves else (0, 0)
-        
+
+        if self.move_randomness > 0 and self._rng.random() < self.move_randomness:
+            legal_moves = rules.get_legal_moves(state)
+            move = self._rng.choice(legal_moves) if legal_moves else (0, 0)
+            if self.reuse_tree and legal_moves:
+                if move in self._root.children:
+                    self._root = self._root.children[move]
+                    self._root.parent = None
+                else:
+                    next_state = rules.apply_move(state, move)
+                    self._root = self._create_node(next_state, rules)
+            else:
+                self._root = None
+            self._last_value = None
+            return move
+
         best_child = max(
             self._root.children.values(),
             key=lambda n: n.visits
