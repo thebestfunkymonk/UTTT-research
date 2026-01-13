@@ -15,15 +15,13 @@ from typing import List, Dict, Optional
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from uttt_research.engine import UTTTState, Player
 from uttt_research.engine.rules import UTTTRules
 from uttt_research.engine.variants import StandardRules, RandomizedOpeningRules, SymmetricOpeningRules
 from uttt_research.engine.variants.balanced import (
-    PieRuleUTTT, OpenBoardRules, WonBoardPlayRules, KillMoveRules, BalancedRules
+    PieRuleUTTT, OpenBoardRules, WonBoardPlayRules, BalancedRules
 )
 from uttt_research.engine.metrics import VariantStatistics, MetricsCollector, compare_variants
-from uttt_research.agents import RandomAgent, MCTSAgent
-from uttt_research.training.evaluator import Arena, quick_evaluate
+from uttt_research.agents import MCTSAgent
 
 
 def get_all_variants() -> List[UTTTRules]:
@@ -39,112 +37,80 @@ def get_all_variants() -> List[UTTTRules]:
     ]
 
 
-def run_random_baseline(
-    variants: List[UTTTRules],
-    num_games: int = 1000,
-    seed: int = 42
-) -> Dict[str, VariantStatistics]:
-    """
-    Run random vs random baseline on all variants.
-    
-    This gives us basic statistics without computational overhead.
-    """
-    print("\n" + "=" * 60)
-    print("RANDOM BASELINE EVALUATION")
-    print("=" * 60)
-    
-    results = {}
-    
-    for rules in variants:
-        print(f"\n--- {rules.name} ---")
-        
-        stats = VariantStatistics(variant_name=rules.name)
-        agent = RandomAgent(seed=seed)
-        
-        for i in range(num_games):
-            # Play a game
-            state = rules.create_initial_state()
-            collector = MetricsCollector()
-            
-            while not state.is_terminal():
-                legal_moves = rules.get_legal_moves(state)
-                collector.record_turn(state, legal_moves)
-                
-                move = agent.select_move(state, rules)
-                collector.record_move(move)
-                
-                state = rules.apply_move(state, move)
-            
-            metrics = collector.finalize(state)
-            stats.games.append(metrics)
-            
-            if (i + 1) % 100 == 0:
-                print(f"  {i+1}/{num_games} games")
-        
-        print(stats)
-        results[rules.name] = stats
-    
-    return results
-
-
-def run_mcts_evaluation(
+def run_mcts_skill_evaluations(
     variants: List[UTTTRules],
     num_games: int = 100,
     mcts_simulations: int = 100,
+    randomness_levels: Optional[List[float]] = None,
     seed: int = 42
-) -> Dict[str, VariantStatistics]:
+) -> Dict[str, Dict[str, VariantStatistics]]:
     """
-    Run MCTS vs MCTS evaluation on all variants.
+    Run MCTS vs MCTS evaluations with varying randomness levels.
     
-    This gives us more accurate win rates and value-based metrics.
+    This simulates players of different skill levels.
     """
     print("\n" + "=" * 60)
-    print("MCTS EVALUATION")
-    print(f"({mcts_simulations} simulations per move)")
+    print("MCTS SKILL EVALUATIONS (RANDOMNESS LEVELS)")
     print("=" * 60)
     
-    results = {}
+    if randomness_levels is None:
+        randomness_levels = [0.0, 0.1, 0.25, 0.5]
+
+    results: Dict[str, Dict[str, VariantStatistics]] = {}
     
-    for rules in variants:
-        print(f"\n--- {rules.name} ---")
-        
-        stats = VariantStatistics(variant_name=rules.name)
-        agent = MCTSAgent(num_simulations=mcts_simulations, seed=seed)
-        
-        def value_estimator(state):
-            return agent.get_value_estimate(state) or 0.5
-        
-        for i in range(num_games):
-            # Play a game
-            state = rules.create_initial_state()
-            agent.reset()
-            collector = MetricsCollector(value_estimator)
-            
-            while not state.is_terminal():
-                legal_moves = rules.get_legal_moves(state)
-                collector.record_turn(state, legal_moves)
-                
-                move = agent.select_move(state, rules)
-                collector.record_move(move)
-                
-                state = rules.apply_move(state, move)
-            
-            metrics = collector.finalize(state)
-            stats.games.append(metrics)
-            
-            if (i + 1) % 10 == 0:
-                print(f"  {i+1}/{num_games} games")
-        
-        print(stats)
-        results[rules.name] = stats
+    for randomness in randomness_levels:
+        label = f"mcts_random_{randomness:.2f}"
+        print(f"\nRandomness level: {randomness:.2f}")
+        print("-" * 60)
+        level_results = {}
+
+        for rules in variants:
+            print(f"\n--- {rules.name} ---")
+
+            stats = VariantStatistics(variant_name=rules.name)
+            agent = MCTSAgent(
+                num_simulations=mcts_simulations,
+                seed=seed,
+                move_randomness=randomness,
+                name=f"MCTS({mcts_simulations}, rand={randomness:.2f})",
+            )
+
+            def value_estimator(state):
+                return agent.get_value_estimate(state) or 0.5
+
+            for i in range(num_games):
+                # Play a game
+                state = rules.create_initial_state()
+                agent.reset()
+                collector = MetricsCollector(value_estimator)
+
+                while not state.is_terminal():
+                    legal_moves = rules.get_legal_moves(state)
+                    collector.record_turn(state, legal_moves)
+
+                    move = agent.select_move(state, rules)
+                    collector.record_move(move)
+
+                    state = rules.apply_move(state, move)
+
+                metrics = collector.finalize(state)
+                stats.games.append(metrics)
+
+                if (i + 1) % 10 == 0:
+                    print(f"  {i+1}/{num_games} games")
+
+            print(stats)
+            level_results[rules.name] = stats
+
+        results[label] = level_results
     
     return results
 
 
 def run_variant_study(
-    num_random_games: int = 1000,
-    num_mcts_games: int = 100,
+    num_skill_games: int = 100,
     mcts_simulations: int = 100,
+    randomness_levels: Optional[List[float]] = None,
     output_dir: Optional[str] = None,
     variants: Optional[List[str]] = None,
     seed: int = 42
@@ -153,9 +119,9 @@ def run_variant_study(
     Run a complete variant study.
     
     Args:
-        num_random_games: Number of random vs random games per variant
-        num_mcts_games: Number of MCTS vs MCTS games per variant
+        num_skill_games: Number of games per randomness level per variant
         mcts_simulations: MCTS simulations per move
+        randomness_levels: MCTS move randomness levels to evaluate
         output_dir: Directory to save results
         variants: List of variant names to test (None = all)
         seed: Random seed
@@ -176,26 +142,25 @@ def run_variant_study(
     print(f"\nVariants to test: {[v.name for v in all_variants]}")
     
     start_time = time.time()
+
+    if randomness_levels is None:
+        randomness_levels = [0.0, 0.1, 0.25, 0.5]
     
     # Run evaluations
-    random_results = run_random_baseline(all_variants, num_random_games, seed)
-    
-    if num_mcts_games > 0:
-        mcts_results = run_mcts_evaluation(all_variants, num_mcts_games, mcts_simulations, seed)
-    else:
-        mcts_results = {}
+    skill_results = run_mcts_skill_evaluations(
+        all_variants,
+        num_games=num_skill_games,
+        mcts_simulations=mcts_simulations,
+        randomness_levels=randomness_levels,
+        seed=seed,
+    )
     
     # Generate comparison report
-    print("\n" + "=" * 60)
-    print("COMPARISON REPORT (Random Baseline)")
-    print("=" * 60)
-    print(compare_variants(list(random_results.values())))
-    
-    if mcts_results:
+    for label, level_results in skill_results.items():
         print("\n" + "=" * 60)
-        print("COMPARISON REPORT (MCTS)")
+        print(f"COMPARISON REPORT ({label})")
         print("=" * 60)
-        print(compare_variants(list(mcts_results.values())))
+        print(compare_variants(list(level_results.values())))
     
     elapsed = time.time() - start_time
     print(f"\nTotal time: {elapsed:.1f}s")
@@ -204,17 +169,15 @@ def run_variant_study(
     results = {
         'timestamp': datetime.now().isoformat(),
         'config': {
-            'num_random_games': num_random_games,
-            'num_mcts_games': num_mcts_games,
+            'num_skill_games': num_skill_games,
             'mcts_simulations': mcts_simulations,
+            'randomness_levels': randomness_levels,
             'seed': seed,
         },
-        'random_baseline': {
-            name: stats.summary() for name, stats in random_results.items()
+        'skill_evaluations': {
+            label: {name: stats.summary() for name, stats in level_results.items()}
+            for label, level_results in skill_results.items()
         },
-        'mcts': {
-            name: stats.summary() for name, stats in mcts_results.items()
-        } if mcts_results else {},
     }
     
     # Save results
@@ -232,12 +195,12 @@ def run_variant_study(
 
 def main():
     parser = argparse.ArgumentParser(description="Run UTTT variant comparison study")
-    parser.add_argument('--random-games', type=int, default=1000,
-                       help='Number of random vs random games per variant')
-    parser.add_argument('--mcts-games', type=int, default=100,
-                       help='Number of MCTS vs MCTS games per variant')
+    parser.add_argument('--skill-games', type=int, default=100,
+                       help='Number of games per randomness level per variant')
     parser.add_argument('--mcts-sims', type=int, default=100,
                        help='MCTS simulations per move')
+    parser.add_argument('--randomness-levels', type=float, nargs='+', default=None,
+                       help='Move randomness levels for MCTS skill evaluation')
     parser.add_argument('--output', type=str, default=None,
                        help='Output directory for results')
     parser.add_argument('--seed', type=int, default=42,
@@ -250,14 +213,13 @@ def main():
     args = parser.parse_args()
     
     if args.quick:
-        args.random_games = 100
-        args.mcts_games = 10
+        args.skill_games = 10
         args.mcts_sims = 50
     
     run_variant_study(
-        num_random_games=args.random_games,
-        num_mcts_games=args.mcts_games,
+        num_skill_games=args.skill_games,
         mcts_simulations=args.mcts_sims,
+        randomness_levels=args.randomness_levels,
         output_dir=args.output,
         variants=args.variants,
         seed=args.seed,
