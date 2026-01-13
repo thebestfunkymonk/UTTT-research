@@ -244,14 +244,20 @@ class MetricsCollector:
         self._current_constraint_run = 0
         self._last_target = None
     
-    def record_turn(self, state: 'UTTTState', legal_moves: List[Tuple[int, int]]):
+    def record_turn(
+        self,
+        state: 'UTTTState',
+        legal_moves: List[Tuple[int, int]],
+        value: Optional[float] = None,
+    ):
         """Record metrics for a turn before move is made."""
         # Move freedom
         self._move_freedoms.append(len(legal_moves))
         
         # Value estimation
-        if self.value_estimator:
+        if value is None and self.value_estimator:
             value = self.value_estimator(state)
+        if value is not None:
             self._values.append(value)
         
         # Constraint tracking
