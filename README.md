@@ -55,6 +55,25 @@ python -m uttt_research.experiments.run_study --skill-games 1000 --mcts-sims 100
 python -m uttt_research.test_harness
 ```
 
+### Quick NN-based evaluation (one-off command)
+
+Use the neural agent in a basic evaluation run (requires PyTorch installed).
+
+```bash
+python - <<'PY'
+from uttt_research.engine.variants import StandardRules
+from uttt_research.agents import MCTSAgent
+from uttt_research.agents.neural import NeuralNetworkAgent
+from uttt_research.training.evaluator import quick_evaluate
+
+rules = StandardRules()
+nn_agent = NeuralNetworkAgent()
+mcts_agent = MCTSAgent(num_simulations=100, seed=42)
+
+quick_evaluate(nn_agent, mcts_agent, rules, num_games=20)
+PY
+```
+
 ## Project Structure
 
 ```
