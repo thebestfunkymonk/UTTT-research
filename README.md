@@ -168,6 +168,7 @@ python -m uttt_research.experiments.run_study [options]
 - `--seed <int>`: Random seed (default: 42).
 - `--variants <name> [<name> ...]`: Limit the study to specific variant names (matches `rules.name`).
 - `--quick`: Shortcut for a reduced run (`--skill-games 10 --mcts-sims 50`).
+- `--save-games`: Emit per-game JSONL logs (raw + LLM-friendly) into the output directory.
 
 **Examples**
 ```bash
@@ -180,7 +181,15 @@ python -m uttt_research.experiments.run_study \
   --skill-games 200 \
   --mcts-sims 200 \
   --randomness-levels 0.0 0.1
+
+# Save raw + LLM-friendly game logs
+python -m uttt_research.experiments.run_study \
+  --output outputs \
+  --save-games
 ```
+
+**Game log schema**: see [GAME_LOG_FORMAT.md](GAME_LOG_FORMAT.md) for full details on the
+raw and LLM-focused formats.
 
 ## References
 
