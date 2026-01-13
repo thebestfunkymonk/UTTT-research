@@ -6,7 +6,7 @@ A modular research framework for studying Ultimate Tic-Tac-Toe (UTTT) variants a
 
 This project provides:
 - **Flexible game engine** with support for multiple rule variants
-- **Agent framework** including Random, MCTS, and Neural Network agents
+- **Agent framework** including Random, MCTS, convolutional NN, and traditional MLP agents
 - **Training infrastructure** for AlphaZero-style self-play learning
 - **Evaluation tools** for comparing variants and agents
 - **Metrics collection** for analyzing game dynamics
@@ -15,7 +15,7 @@ This project provides:
 
 ```bash
 # Clone the repository
-cd UTTT
+cd UTTT-research
 
 # Install dependencies
 pip install -r requirements.txt
@@ -46,7 +46,13 @@ print(stats)
 python -m uttt_research.experiments.run_study --quick
 
 # Full study
-python -m uttt_research.experiments.run_study --random-games 1000 --mcts-games 100
+python -m uttt_research.experiments.run_study --skill-games 1000 --mcts-sims 100
+```
+
+### Run the test harness
+
+```bash
+python -m uttt_research.test_harness
 ```
 
 ## Project Structure
@@ -65,7 +71,8 @@ uttt_research/
 │   ├── base.py         # Agent interface
 │   ├── random.py       # Random baseline
 │   ├── mcts.py         # Monte Carlo Tree Search
-│   └── neural.py       # Neural network agent
+│   ├── neural.py       # Convolutional policy/value network agents
+│   └── traditional.py  # MLP policy/value network agents
 ├── training/
 │   ├── self_play.py    # Self-play data generation
 │   ├── train_net.py    # Neural network training
@@ -122,6 +129,38 @@ pipeline = TrainingPipeline(
 # Run training iterations
 for i in range(10):
     losses = pipeline.run_iteration()
+```
+
+## CLI Commands and Flags
+
+### Variant study (`uttt_research.experiments.run_study`)
+
+Run a comparative study across UTTT variants using MCTS agents.
+
+```bash
+python -m uttt_research.experiments.run_study [options]
+```
+
+**Options**
+- `--skill-games <int>`: Games per randomness level per variant (default: 100).
+- `--mcts-sims <int>`: MCTS simulations per move (default: 100).
+- `--randomness-levels <float> [<float> ...]`: Randomness levels for MCTS skill evaluation (default: `[0.0, 0.1, 0.25, 0.5]`).
+- `--output <path>`: Output directory for JSON results.
+- `--seed <int>`: Random seed (default: 42).
+- `--variants <name> [<name> ...]`: Limit the study to specific variant names (matches `rules.name`).
+- `--quick`: Shortcut for a reduced run (`--skill-games 10 --mcts-sims 50`).
+
+**Examples**
+```bash
+# Fast sanity check
+python -m uttt_research.experiments.run_study --quick
+
+# Targeted run on specific variants
+python -m uttt_research.experiments.run_study \
+  --variants Standard Balanced \
+  --skill-games 200 \
+  --mcts-sims 200 \
+  --randomness-levels 0.0 0.1
 ```
 
 ## References
