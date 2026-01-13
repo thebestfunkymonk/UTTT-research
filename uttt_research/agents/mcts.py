@@ -138,7 +138,18 @@ class MCTSAgent(Agent):
 
         if self.move_randomness > 0 and self._rng.random() < self.move_randomness:
             legal_moves = rules.get_legal_moves(state)
-            return self._rng.choice(legal_moves) if legal_moves else (0, 0)
+            move = self._rng.choice(legal_moves) if legal_moves else (0, 0)
+            if self.reuse_tree and legal_moves:
+                if move in self._root.children:
+                    self._root = self._root.children[move]
+                    self._root.parent = None
+                else:
+                    next_state = rules.apply_move(state, move)
+                    self._root = self._create_node(next_state, rules)
+            else:
+                self._root = None
+            self._last_value = None
+            return move
 
         best_child = max(
             self._root.children.values(),
