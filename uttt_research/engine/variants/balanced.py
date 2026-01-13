@@ -287,12 +287,13 @@ class BalancedRules(UTTTRules):
         moves = []
         
         # Determine playable macro-boards (open board style)
-        # Note: This implementation only allows ONGOING boards, not WON boards
-        # For full Open Board behavior, should allow WON boards too when sent to WON board
         if state.target_macro is not None:
             target_status = state.get_macro_status(state.target_macro)
             if target_status == MacroBoardStatus.ONGOING:
                 macro_indices = [state.target_macro]
+            elif target_status in [MacroBoardStatus.X_WON, MacroBoardStatus.O_WON]:
+                # Target is WON - can play in any ONGOING or WON macro-board
+                macro_indices = list(range(9))
             else:
                 # Can play in any ONGOING macro-board
                 macro_indices = [i for i in range(9) 
@@ -303,6 +304,9 @@ class BalancedRules(UTTTRules):
         
         # Get empty cells
         for macro_idx in macro_indices:
+            # Skip only FULL (DRAW) macro-boards
+            if state.get_macro_status(macro_idx) == MacroBoardStatus.DRAW:
+                continue
             for cell_idx in range(9):
                 if state.get_cell(macro_idx, cell_idx) == Player.NONE:
                     moves.append((macro_idx, cell_idx))
