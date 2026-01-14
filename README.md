@@ -57,17 +57,30 @@ python -m uttt_research.test_harness
 
 ### Quick NN-based evaluation (one-off command)
 
-Use the neural agent in a basic evaluation run (requires PyTorch installed).
+Use the neural network to guide MCTS during evaluation (requires PyTorch installed). This
+matches the AlphaZero-style setup used during self-play and is substantially stronger than
+the greedy `NeuralNetworkAgent`, which plays directly from the raw network policy.
 
 ```bash
 python - <<'PY'
 from uttt_research.engine.variants import StandardRules
 from uttt_research.agents import MCTSAgent
-from uttt_research.agents.neural import NeuralNetworkAgent
+from uttt_research.agents.mcts import MCTSAgentWithPrior
+from uttt_research.agents.neural import UTTTNet
 from uttt_research.training.evaluator import quick_evaluate
 
 rules = StandardRules()
-nn_agent = NeuralNetworkAgent()
+network = UTTTNet()
+
+def policy_value_fn(state):
+    legal_moves = rules.get_legal_moves(state)
+    return network.predict(state, legal_moves)
+
+nn_agent = MCTSAgentWithPrior(
+    policy_value_fn=policy_value_fn,
+    num_simulations=100,
+    name="NN-MCTS(100)"
+)
 mcts_agent = MCTSAgent(num_simulations=100, seed=42)
 
 quick_evaluate(nn_agent, mcts_agent, rules, num_games=20)
@@ -148,6 +161,51 @@ pipeline = TrainingPipeline(
 # Run training iterations
 for i in range(10):
     losses = pipeline.run_iteration()
+```
+
+### Corrected training + evaluation example
+
+Train a network with NN-guided MCTS self-play and then evaluate it using the same
+AlphaZero-style setup (NN-guided MCTS vs baseline MCTS).
+
+```python
+from uttt_research.agents import MCTSAgent
+from uttt_research.agents.mcts import MCTSAgentWithPrior
+from uttt_research.agents.neural import UTTTNet
+from uttt_research.training.train_net import TrainingPipeline, TrainingConfig
+from uttt_research.training.evaluator import quick_evaluate
+from uttt_research.engine.variants import StandardRules
+
+# Create network and pipeline
+network = UTTTNet(num_residual_blocks=4, num_filters=64)
+rules = StandardRules()
+config = TrainingConfig(batch_size=256, learning_rate=0.001)
+
+pipeline = TrainingPipeline(
+    network, rules, config,
+    num_self_play_games=100,
+    num_mcts_simulations=100
+)
+
+# Run training iterations
+for i in range(10):
+    losses = pipeline.run_iteration()
+
+# NN-guided MCTS agent
+def policy_value_fn(state):
+    legal_moves = rules.get_legal_moves(state)
+    return network.predict(state, legal_moves)
+
+nn_agent = MCTSAgentWithPrior(
+    policy_value_fn=policy_value_fn,
+    num_simulations=100,
+    name="NN-MCTS(100)"
+)
+
+# Baseline MCTS agent
+mcts_agent = MCTSAgent(num_simulations=100, seed=42)
+
+quick_evaluate(nn_agent, mcts_agent, rules, num_games=20)
 ```
 
 ## CLI Commands and Flags
